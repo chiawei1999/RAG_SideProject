@@ -34,7 +34,7 @@ pip install langchain-openai langchain-community langchain qdrant-client sentenc
 QDRANT_URL=你的Qdrant服務URL
 QDRANT_API_KEY=你的Qdrant API金鑰
 COLLECTION_NAME=你想使用的集合名稱
-EMBEDDING_DIM=768
+EMBEDDING_DIM=384
 OPENAI_API_KEY=你的OpenAI API金鑰
 ```
 
