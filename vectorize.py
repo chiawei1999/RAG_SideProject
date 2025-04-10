@@ -1,17 +1,52 @@
-# -*- coding: utf-8 -*-
-"""
-向量化模組：將處理後文本做 chunk、嵌入、寫入 Qdrant
-"""
-
 import os
+from dotenv import dotenv_values
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 from sentence_transformers import SentenceTransformer
 from uuid import uuid4
 
-QDRANT_URL = "http://localhost:6333"  # 或你的遠端 Qdrant URL
-COLLECTION_NAME = "rag_docs"
-EMBEDDING_DIM = 384  # jina-zh small 模型為 384 維
+config = dotenv_values(".env")
+QDRANT_URL = config["QDRANT_URL"]  # 或你的遠端 Qdrant URL
+COLLECTION_NAME = config["COLLECTION_NAME"]
+EMBEDDING_DIM = int(config.get("EMBEDDING_DIM", 384)) # jina-zh small 模型為 384 維
+
+def parse_text_blocks(text: str) -> list[dict]:
+    """
+    解析標記有 【type: xxx】 的文本區塊
+    
+    Args:
+        text: 包含多個標記區塊的文本
+        
+    Returns:
+        list: 包含每個區塊類型和內容的字典列表
+    """
+    blocks = []
+    # 使用 【type: 分割文本
+    sections = text.split("【type:")
+    
+    # 第一個分割可能是空的（如果文本以【type:開頭）
+    sections = [s for s in sections if s.strip()]
+    
+    for section in sections:
+        # 提取類型和內容
+        try:
+            # 分割出類型和內容
+            type_end = section.find("】")
+            if type_end == -1:
+                continue
+                
+            block_type = section[:type_end].strip()
+            content = section[type_end+1:].strip()
+            
+            blocks.append({
+                "type": block_type,
+                "content": content
+            })
+        except Exception as e:
+            print(f"解析區塊時出錯: {e}")
+            continue
+            
+    return blocks
 
 def split_text(text: str, chunk_size=500, overlap=100):
     """
@@ -52,22 +87,43 @@ def vectorize_and_store(text_path: str):
     else:
         print(f"📦 使用既有集合：{COLLECTION_NAME}")
 
-    # 載入文本與切割
+    # 載入文本
     raw_text = load_clean_text(text_path)
-    chunks = split_text(raw_text)
-
+    
+    # 解析文本區塊
+    blocks = parse_text_blocks(raw_text)
+    
     # 向量化模型
     model = SentenceTransformer("jinaai/jina-embeddings-v2-small-zh")
-    embeddings = model.encode(chunks, normalize_embeddings=True)
+    
+    # 準備所有的 chunks 和對應的 metadata
+    all_chunks = []
+    all_metadata = []
+    
+    for i, block in enumerate(blocks):
+        block_chunks = split_text(block["content"])
+        for chunk in block_chunks:
+            all_chunks.append(chunk)
+            all_metadata.append({
+                "type": block["type"],
+                "block_id": i,  # 新增欄位
+                "text": chunk
+            })
 
+    
+    print(f"📄 共解析出 {len(blocks)} 個區塊，產生 {len(all_chunks)} 個 chunks")
+    
+    # 向量化所有 chunks
+    embeddings = model.encode(all_chunks, normalize_embeddings=True)
+    
     # 組成 Qdrant Point 結構
     points = [
         PointStruct(
             id=str(uuid4()),
             vector=embeddings[i],
-            payload={"text": chunks[i]}
+            payload=all_metadata[i]
         )
-        for i in range(len(chunks))
+        for i in range(len(all_chunks))
     ]
 
     # 寫入資料庫

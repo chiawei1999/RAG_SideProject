@@ -1,23 +1,20 @@
-# -*- coding: utf-8 -*-
-"""
-文本前處理模組：將原始 txt 做清理與格式統一
-"""
-
 import os
 import re
 
 def clean_text(text: str) -> str:
     """
-    清理文本內容：移除多餘空白、特殊符號等
+    溫和清理：保留換行與格式，只移除 HTML tag 與多餘空行
     """
     # 移除 HTML tag（如有）
     text = re.sub(r"<[^>]+>", "", text)
 
-    # 替換多個空白為單一空白
-    text = re.sub(r"\s+", " ", text)
+    # 移除多餘空行（保留單一換行）
+    text = re.sub(r"\n{3,}", "\n\n", text)
 
-    # 去除開頭結尾空白
-    return text.strip()
+    # 每行首尾去空白
+    lines = [line.strip() for line in text.splitlines()]
+    return "\n".join(lines).strip()
+
 
 
 def process_raw_txt(input_path: str, output_path: str):
