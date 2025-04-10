@@ -22,7 +22,7 @@ class RAGPipeline:
     def __init__(self):
         # 初始化 Qdrant 與模型
         self.client = QdrantClient(QDRANT_URL)
-        self.model = SentenceTransformer("jinaai/jina-embeddings-v2-small-zh")
+        self.model = SentenceTransformer("jinaai/jina-embeddings-v2-base-zh")
 
     def search_similar_docs(self, query: str, top_k: int = OPENAI_TOP_K):
         # 向量化 query 並查詢相似內容
@@ -54,3 +54,12 @@ class RAGPipeline:
         prompt = self.build_prompt(user_input, results)
         response = llm.generate_content(prompt)
         return response.text
+
+
+# 測試入口點
+if __name__ == "__main__":
+    rag = RAGPipeline()
+    test_question = "請問我有哪些 AI 技術經驗？"
+    answer = rag.query(test_question)
+    print("\n🧠 問題：", test_question)
+    print("\n🤖 回答：", answer)
